@@ -1,56 +1,60 @@
 # Install necessary packages
 import pandas as pd 
+import os
 from mlxtend.preprocessing import TransactionEncoder 
 from mlxtend.frequent_patterns import fpgrowth, association_rules
 
 # Load data set
-df = pd.read_csv("C:/Users/befed/Downloads/US_Accidents_March23_sampled_500k.csv")
+df = pd.read_csv(os.path.expanduser("~/Downloads/US_Accidents_March23_sampled_500k.csv"))
 
-# Drop numeric columns not needed for Apriori
-df_apriori = df.drop(columns=['Start_Lat', 'Start_Lng', 'End_Lat', 'End_Lng', 'Wind_Chill(F)'])
+# Drop columns not needed
+df_fp = df.drop(columns=['Start_Lat', 'Start_Lng', 'End_Lat', 'End_Lng', 'Wind_Chill(F)','Distance(mi)','Description',
+'Street','City','County','Zipcode','Timezone','Country','Airport_Code','Weather_Timestamp','Temperature(F)','Wind_Chill(F)',
+'Humidity(%)','Pressure(in)','Wind_Direction','Amenity','Junction','Civil_Twilight','Nautical_Twilight','Astronomical_Twilight'
+], errors='ignore')
 
-# Fill empty numeric fields with median
-numeric_cols_small_missing = ['Temperature(F)', 'Humidity(%)', 'Pressure(in)', 'Visibility(mi)']
-df_apriori[numeric_cols_small_missing] = df_apriori[numeric_cols_small_missing].fillna(df_apriori[numeric_cols_small_missing].median())
+# Fill empty numeric field with median
+numeric_cols_small_missing = ['Visibility(mi)']
+df_fp[numeric_cols_small_missing] = df_fp[numeric_cols_small_missing].fillna(df_fp[numeric_cols_small_missing].median())
 
 # Fill missing categorical data with 'Unknown'
-categorical_cols = df_apriori.select_dtypes(include='object').columns
-df_apriori[categorical_cols] = df_apriori[categorical_cols].fillna('Unknown')
+categorical_cols = df_fp.select_dtypes(include='object').columns
+df_fp[categorical_cols] = df_fp[categorical_cols].fillna('Unknown')
 
 # Bin important numeric categories
-df_apriori['Precipitation_cat'] = pd.cut(
-    df_apriori['Precipitation(in)'],
+df_fp['Precipitation_cat'] = pd.cut(
+    df_fp['Precipitation(in)'],
     bins=[-0.01, 0, 0.1, 0.5, 2, 10],
     labels=['None', 'Light', 'Moderate', 'Heavy', 'Extreme']
 )
 
-df_apriori['Wind_Speed_cat'] = pd.cut(
-    df_apriori['Wind_Speed(mph)'],
+df_fp['Wind_Speed_cat'] = pd.cut(
+    df_fp['Wind_Speed(mph)'],
     bins=[-0.01, 5, 15, 30, 50, 100],
     labels=['Calm', 'Breeze', 'Windy', 'Strong', 'Extreme']
 )
 
-df_apriori['Visibility_cat'] = pd.cut(
-    df_apriori['Visibility(mi)'],
+df_fp['Visibility_cat'] = pd.cut(
+    df_fp['Visibility(mi)'],
     bins=[-0.01, 1, 3, 6, 10, 100],
     labels=['Very Low', 'Low', 'Moderate', 'Good', 'Excellent']
 )
 
 # Replace missing binned values with 'Unknown'
-df_apriori['Precipitation_cat'] = df_apriori['Precipitation_cat'].cat.add_categories('Unknown')
-df_apriori['Precipitation_cat'] = df_apriori['Precipitation_cat'].fillna('Unknown')
+df_fp['Precipitation_cat'] = df_fp['Precipitation_cat'].cat.add_categories('Unknown')
+df_fp['Precipitation_cat'] = df_fp['Precipitation_cat'].fillna('Unknown')
 
-df_apriori['Wind_Speed_cat'] = df_apriori['Wind_Speed_cat'].cat.add_categories('Unknown')
-df_apriori['Wind_Speed_cat'] = df_apriori['Wind_Speed_cat'].fillna('Unknown')
+df_fp['Wind_Speed_cat'] = df_fp['Wind_Speed_cat'].cat.add_categories('Unknown')
+df_fp['Wind_Speed_cat'] = df_fp['Wind_Speed_cat'].fillna('Unknown')
 
-df_apriori['Visibility_cat'] = df_apriori['Visibility_cat'].cat.add_categories('Unknown')
-df_apriori['Visibility_cat'] = df_apriori['Visibility_cat'].fillna('Unknown')
+df_fp['Visibility_cat'] = df_fp['Visibility_cat'].cat.add_categories('Unknown')
+df_fp['Visibility_cat'] = df_fp['Visibility_cat'].fillna('Unknown')
 
 # Drop original numeric columns
-df_apriori = df_apriori.drop(columns=['Precipitation(in)', 'Wind_Speed(mph)','Visibility(mi)'])
+df_fp = df_fp.drop(columns=['Precipitation(in)', 'Wind_Speed(mph)','Visibility(mi)'])
 
 # Filter for Illinois
-df_il = df_apriori[df_apriori['State']=='IL']
+df_il = df_fp[df_fp['State']=='IL']
 
 # Choose columms to use in algorithm
 cols_to_use = [
@@ -59,7 +63,6 @@ cols_to_use = [
 ]
 
 df_il_subset = df_il[cols_to_use].astype(str)
-
 
 # Convert to transactions
 transactions = []
@@ -127,12 +130,12 @@ severity_3_4_rules = rules[
     rules['consequents'].apply(lambda x: 'Severity=3' in x or 'Severity=4' in x)
 ]
 
-# Keep ONLY severity in consequent
+# Keep only severity in consequent
 severity_3_4_rules = severity_3_4_rules[
     severity_3_4_rules['consequents'].apply(lambda x: x <= {'Severity=3','Severity=4'})
 ]
 
-# Limit rule size (makes output cleaner)
+# Limit rule size
 severity_3_4_rules = severity_3_4_rules[
     severity_3_4_rules['antecedents'].apply(lambda x: len(x) <= 3)
 ]
